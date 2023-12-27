@@ -1,42 +1,17 @@
-from urllib.parse import urlencode
 import requests
 from pprint import pprint
 import yadisk
-import os
 import json
 from alive_progress import alive_bar
 from datetime import datetime
-
 import time
 
 """ Получение VK access_token """ # Implicit Flow для получения ключа доступа пользователя https://dev.vk.com/ru/api/access-token/implicit-flow-user
 
-vk_app_id = 51817165  # ID APP VK keeps the same
-
-VK_OAUTH_BASE_URL = 'https://oauth.vk.com/authorize'
-
-def get_params_vk_auth():
-    return {'client_id': vk_app_id,
-            'redirect_uri': 'https://oauth.vk.com/blank.html',
-            'scope': 'photos',
-            'response_type': 'token',
-            'v': '5.131'}
-
-def get_vk_access_token():
-    params = get_params_vk_auth()
-    response = requests.get(f'{VK_OAUTH_BASE_URL}?{urlencode(params)}')
-    return response.headers
-
-def get_vk_oauth_url():
-    params = get_params_vk_auth()
-    vk_oauth_url = f'{VK_OAUTH_BASE_URL}?{urlencode(params)}'
-    return vk_oauth_url
-
-# Здесь необходимо разобрать адресную строку, чтобы получить из нее access_token... пока вставлен вручную ниже
+from vk_access_token import vk_token
 
 """ Скачивание фотографий с профиля VK """ # https://dev.vk.com/ru/method/photos.get
 
-vk_token = str(input('Необходимо вручную вставить VK access token: '))
 vk_user_id = int(input('Ваш VK ID (цифровой), откуда необходимо скачать фотографии: ')) # my VK ID 838704138 https://vk.com/id838704138
 
 VK_API_PHOTOGET_URL = 'https://api.vk.com/method'  # url = 'https://api.vk.com/method/photos.get'
@@ -89,8 +64,10 @@ def get_ya_folder_create():
     params = get_ya_folder_params()
     headers = get_ya_headers()
     response = requests.put(YA_API_URL_FOLDER_CREATE, headers=headers, params=params)
-    print('Папка VK_photos успешно создана на Яндекс.Диске')
-    return response.json()
+    if response.status_code == 201:
+        return 'Папка VK_photos успешно создана на Яндекс.Диске'
+    else:
+        return response.json()['message']
 
 def get_file_name():
     date = datetime.strftime(datetime.now(), "%d.%m.%Y-%H.%M.%S")
@@ -124,12 +101,13 @@ def write_json_log():
     photos_size_list = get_vk_profile_photos_size()
     with open('vk_photos_log.json', 'w') as file:
         for idx, photo_size in enumerate(photos_size_list):
-            to_json = {'file_name': f'#{idx+1}_{get_file_name()}_vk_photo.jpg', 'size': photo_size}
+            to_json = {'file_name': f'#{idx+1}_{get_file_name()}.jpg', 'size': photo_size}
             json.dump(to_json, file)
-            print(f'Информация о загруженной фотографии с именем "#{idx+1}_{get_file_name()}_vk_photo.jpg" добавлена в json-файл')
+            print(f'Информация о загруженной фотографии с именем "#{idx+1}_{get_file_name()}.jpg" добавлена в json-файл')
     return f'Вся информация по {len(get_vk_profile_photos_size())} фотографиям успешно добавлена в файл vk_photos_log.json'
 
 def read_json_log():
+    write_json_log()
     with open('vk_photos_log.json') as file:
         data = [photo for photo in file]
         return data
@@ -139,9 +117,11 @@ def read_json_log():
 y = yadisk.YaDisk(token=ya_token)
 
 def get_photos_upload_YaRestAPI():
+    get_photos_upload_pc()
+    get_ya_folder_create()
     for i in range(len(get_vk_profile_photos_url())):
-        y.upload(f'#{i+1}_vk_photo.jpg', f'/VK_photos/#{i+1}_{get_file_name()}_vk_photo.jpg')
-        print(f'Фотография "#{i+1}_{get_file_name()}_vk_photo.jpg" успешно загружена на Яндекс.Диск')
+        y.upload(f'#{i+1}_vk_photo.jpg', f'/VK_photos/#{i+1}_{get_file_name()}.jpg')
+        print(f'Фотография "#{i+1}_{get_file_name()}.jpg" успешно загружена на Яндекс.Диск')
     return f'Все {len(get_vk_profile_photos_url())} фотографий успешно загружены на Яндекс.Диск'
 # --------------------------------------------------------------------
 
@@ -156,25 +136,8 @@ with alive_bar(len(mylist)) as bar:
 
 # --------------------------------------------------------------------
 
-pprint(get_vk_oauth_url())
 print()
-pprint(get_vk_access_token())
-print()
-
-pprint(get_vk_profile_photos_info())
-print()
-pprint(get_vk_profile_photos_url())
-print()
-
-pprint(get_ya_folder_create())
-print()
-pprint(get_photos_upload_pc())
-print()
-#pprint(get_photos_upload_ya())
-#print()
 pprint(get_photos_upload_YaRestAPI())
-print()
-pprint(write_json_log())
 print()
 pprint(read_json_log())
 
